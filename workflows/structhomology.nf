@@ -47,8 +47,8 @@ workflow STRUCTHOMOLOGY {
 
     ch_pass = AFDB_FETCH.out.model
         .join(PLDDT_QC.out.flag)
-        .filter { meta, model, conf, fasta, record, flag -> flag == 'PASS' }
-        .map { meta, model, conf, fasta, record, flag -> [ meta, model, fasta ] }
+        .filter { _meta, _model, _conf, _fasta, _record, flag -> flag == 'PASS' }
+        .map { meta, model, _conf, fasta, _record, _flag -> [ meta, model, fasta ] }
 
     // 3. Target structure database
     def ch_db = channel.empty()
@@ -64,13 +64,13 @@ workflow STRUCTHOMOLOGY {
             file("${bin}/fetch_pdb_targets.py", checkIfExists: true)
         )
         FOLDSEEK_CREATEDB(FETCH_PDB_TARGETS.out.structures)
-        ch_db = FOLDSEEK_CREATEDB.out.db.first()
+        ch_db = FOLDSEEK_CREATEDB.out.db
         ch_versions = ch_versions.mix(FETCH_PDB_TARGETS.out.versions, FOLDSEEK_CREATEDB.out.versions)
     }
     else {
         def db_name = params.foldseek_db_name.toString()
         FOLDSEEK_DATABASES([ id: db_name.replaceAll(/[^A-Za-z0-9]+/, '_').toLowerCase(), name: db_name, source: 'foldseek databases' ])
-        ch_db = FOLDSEEK_DATABASES.out.db.first()
+        ch_db = FOLDSEEK_DATABASES.out.db
         FOLDSEEK_DATABASES.out.list.collectFile(name: 'foldseek_databases_list.txt', storeDir: "${params.outdir}/database")
         ch_versions = ch_versions.mix(FOLDSEEK_DATABASES.out.versions)
     }
@@ -78,12 +78,12 @@ workflow STRUCTHOMOLOGY {
     // 4. The same targets as amino-acid sequences, so both arms search one set
     DB_TO_FASTA(ch_db)
     MMSEQS_CREATEDB(DB_TO_FASTA.out.fasta)
-    ch_seqdb = MMSEQS_CREATEDB.out.db.first()
+    ch_seqdb = MMSEQS_CREATEDB.out.db
     ch_versions = ch_versions.mix(DB_TO_FASTA.out.versions, MMSEQS_CREATEDB.out.versions)
 
     // 5. Structure arm and sequence arm
-    FOLDSEEK_EASYSEARCH(ch_pass.map { meta, model, fasta -> [ meta, model ] }, ch_db)
-    MMSEQS_EASYSEARCH(ch_pass.map { meta, model, fasta -> [ meta, fasta ] }, ch_seqdb)
+    FOLDSEEK_EASYSEARCH(ch_pass.map { meta, model, _fasta -> [ meta, model ] }, ch_db)
+    MMSEQS_EASYSEARCH(ch_pass.map { meta, _model, fasta -> [ meta, fasta ] }, ch_seqdb)
     ch_versions = ch_versions.mix(FOLDSEEK_EASYSEARCH.out.versions, MMSEQS_EASYSEARCH.out.versions)
 
     // 6. Merge arms, classify, annotate
@@ -95,9 +95,9 @@ workflow STRUCTHOMOLOGY {
 
     // 7. Run-level tables
     SUMMARISE(
-        ANNOTATE_HITS.out.top_hits.map { meta, f -> f }.collect().ifEmpty([]),
-        ANNOTATE_HITS.out.summary.map { meta, f -> f }.collect().ifEmpty([]),
-        PLDDT_QC.out.tsv.map { meta, f -> f }.collect(),
+        ANNOTATE_HITS.out.top_hits.map { _meta, f -> f }.collect().ifEmpty([]),
+        ANNOTATE_HITS.out.summary.map { _meta, f -> f }.collect().ifEmpty([]),
+        PLDDT_QC.out.tsv.map { _meta, f -> f }.collect(),
         DB_TO_FASTA.out.info,
         file("${bin}/summarise.py", checkIfExists: true)
     )
@@ -107,7 +107,7 @@ workflow STRUCTHOMOLOGY {
     if (params.controls) {
         CHECK_CONTROLS(
             SUMMARISE.out.combined,
-            ANNOTATE_HITS.out.all_hits.map { meta, f -> f }.collect().ifEmpty([]),
+            ANNOTATE_HITS.out.all_hits.map { _meta, f -> f }.collect().ifEmpty([]),
             file(params.controls, checkIfExists: true),
             file("${bin}/check_controls.py", checkIfExists: true)
         )
