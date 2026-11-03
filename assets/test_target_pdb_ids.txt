@@ -1,0 +1,33 @@
+# Target set for -profile test: known relatives of the three positive controls
+# plus unrelated decoy folds. Downloaded from RCSB as mmCIF and turned into a
+# small Foldseek database by FOLDSEEK_CREATEDB.
+#
+# TPI1 (TIM barrel): human, yeast, chicken, Trypanosoma brucei
+4POC
+1YPI
+1TIM
+5TIM
+# Myoglobin / globins: human Mb, sperm whale Mb, human Hb, soybean leghemoglobin, Vitreoscilla Hb
+3RGK
+1A6M
+4HHB
+1BIN
+1VHB
+# LDHA (Rossmann + LDH/MDH C-terminal domain): human, dogfish, B. stearothermophilus, P. falciparum LDH; E. coli MDH
+5W8J
+1LDM
+1LDN
+1LDG
+1EMD
+# Decoys: ubiquitin, hen lysozyme, GFP, tenascin FnIII, crambin, T4 lysozyme,
+# protein G B1, RNase A, barnase, adenylate kinase
+1UBQ
+1LYZ
+1GFL
+1TEN
+1CRN
+2LZM
+1PGB
+7RSA
+1A2P
+4AKE

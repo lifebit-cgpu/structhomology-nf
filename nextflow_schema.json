@@ -1,0 +1,220 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/lifebit-cgpu/structhomology-nf/main/nextflow_schema.json",
+    "title": "structhomology-nf pipeline parameters",
+    "description": "Structure (Foldseek) versus sequence (MMseqs2) homology search for AlphaFold DB models of UniProt accessions, over one shared target database.",
+    "type": "object",
+    "$defs": {
+        "input_output_options": {
+            "title": "Input/output options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Where the samplesheet is and where results go.",
+            "required": ["input", "outdir"],
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "schema": "assets/schema_input.json",
+                    "mimetype": "text/csv",
+                    "pattern": "^\\S+\\.csv$",
+                    "fa_icon": "fas fa-file-csv",
+                    "description": "CSV samplesheet: column 'accession' (canonical UniProtKB accession, required) and optional column 'group' ('query' or 'control').",
+                    "help_text": "Validated on entry against assets/schema_input.json. Malformed accessions, isoform suffixes (e.g. -2), entry names (e.g. TPIS_HUMAN), unknown groups and duplicated accessions stop the run with an error naming the row."
+                },
+                "outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "fa_icon": "fas fa-folder-open",
+                    "description": "Output directory (local path or cloud bucket URI)."
+                },
+                "publish_dir_mode": {
+                    "type": "string",
+                    "default": "copy",
+                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
+                    "fa_icon": "fas fa-copy",
+                    "description": "How result files are published to the output directory."
+                }
+            }
+        },
+        "alphafold_options": {
+            "title": "AlphaFold DB options",
+            "type": "object",
+            "fa_icon": "fas fa-dna",
+            "description": "Retrieval of AlphaFold DB records and models.",
+            "properties": {
+                "afdb_api_url": {
+                    "type": "string",
+                    "default": "https://alphafold.ebi.ac.uk/api/prediction",
+                    "description": "AlphaFold DB prediction API endpoint. The model version is read from the canonical record's 'latestVersion' field, never hard-coded."
+                },
+                "afdb_max_forks": {
+                    "type": "integer",
+                    "default": 3,
+                    "minimum": 1,
+                    "description": "Maximum number of AlphaFold DB downloads in parallel (the file server rate-limits with HTTP 429)."
+                }
+            }
+        },
+        "plddt_gate_options": {
+            "title": "pLDDT gate",
+            "type": "object",
+            "fa_icon": "fas fa-filter",
+            "description": "Models below either threshold are recorded but not searched.",
+            "properties": {
+                "min_mean_plddt": {
+                    "type": "number",
+                    "default": 70,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Minimum mean pLDDT for a model to be searched.",
+                    "help_text": "70 is AlphaFold's own boundary for a confidently predicted backbone; Foldseek's 3Di alphabet is computed from the backbone."
+                },
+                "min_frac_confident": {
+                    "type": "number",
+                    "default": 0.5,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Minimum fraction of residues with pLDDT >= 70 for a model to be searched.",
+                    "help_text": "Stops a long disordered tail from sinking a well-folded domain while excluding models that are mostly disordered."
+                }
+            }
+        },
+        "database_options": {
+            "title": "Target database",
+            "type": "object",
+            "fa_icon": "fas fa-database",
+            "description": "One target set is used for both arms. Priority: --foldseek_db, then --target_pdb_ids, then --foldseek_db_name.",
+            "properties": {
+                "foldseek_db_name": {
+                    "type": "string",
+                    "default": "PDB",
+                    "description": "Name of a database offered by `foldseek databases` (e.g. PDB, Alphafold/Swiss-Prot, CATH50). The pipeline lists the available databases and stops if the name is not among them."
+                },
+                "foldseek_db": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Directory holding an existing Foldseek database (the prefix is detected from its *_ss.dbtype file). Skips the download."
+                },
+                "target_pdb_ids": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Text file of PDB IDs (one per line, '#' comments allowed). Builds a small Foldseek database from RCSB mmCIF files; used by -profile test."
+                },
+                "db_cache_dir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Persistent directory where downloaded Foldseek databases are stored and reused by later runs. Defaults to <outdir>/databases."
+                }
+            }
+        },
+        "search_options": {
+            "title": "Search options",
+            "type": "object",
+            "fa_icon": "fas fa-search",
+            "description": "Limits applied identically to the Foldseek and MMseqs2 arms.",
+            "properties": {
+                "search_evalue": {
+                    "type": "number",
+                    "default": 10,
+                    "minimum": 0,
+                    "description": "Maximum E-value of hits reported by both Foldseek and MMseqs2."
+                },
+                "max_seqs": {
+                    "type": "integer",
+                    "default": 1000,
+                    "minimum": 1,
+                    "description": "Maximum prefilter hits passed to alignment per query, in both arms."
+                },
+                "mmseqs_sensitivity": {
+                    "type": "number",
+                    "default": 7.5,
+                    "minimum": 1,
+                    "maximum": 7.5,
+                    "description": "MMseqs2 -s sensitivity. 7.5 is the most sensitive setting, so sequence search is given its best chance."
+                }
+            }
+        },
+        "hit_options": {
+            "title": "Hit classification and annotation",
+            "type": "object",
+            "fa_icon": "fas fa-tags",
+            "description": "How hits are called significant, compared between arms and annotated.",
+            "properties": {
+                "sig_evalue": {
+                    "type": "number",
+                    "default": 0.001,
+                    "minimum": 0,
+                    "description": "E-value at or below which a hit counts as significant, in both arms."
+                },
+                "min_tmscore": {
+                    "type": "number",
+                    "default": 0.5,
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "A Foldseek hit also counts as significant when max(query-, target-normalised TM-score) reaches this value over at least --min_aln_len residues (TM >= 0.5 indicates the same fold)."
+                },
+                "min_aln_len": {
+                    "type": "integer",
+                    "default": 50,
+                    "minimum": 1,
+                    "description": "Minimum alignment length for the TM-score significance route."
+                },
+                "top_n": {
+                    "type": "integer",
+                    "default": 10,
+                    "minimum": 1,
+                    "description": "Top structural and top sequence hits per protein carried into the combined table."
+                },
+                "skip_remote_annotation": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Do not query RCSB PDB or UniProt; annotate hits from database headers only (offline use)."
+                },
+                "rcsb_graphql_url": {
+                    "type": "string",
+                    "default": "https://data.rcsb.org/graphql",
+                    "description": "RCSB PDB Data API (GraphQL) endpoint for entry titles, entity descriptions, EC numbers, Pfam/InterPro/CATH/SCOP/ECOD/GO and UniProt mappings."
+                },
+                "uniprot_rest_url": {
+                    "type": "string",
+                    "default": "https://rest.uniprot.org",
+                    "description": "UniProt REST base URL for protein names, annotation scores and function text of hits."
+                }
+            }
+        },
+        "control_options": {
+            "title": "Positive controls",
+            "type": "object",
+            "fa_icon": "fas fa-check-double",
+            "description": "Acceptance test: each control must recover a known structural relative.",
+            "properties": {
+                "controls": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/csv",
+                    "pattern": "^\\S+\\.csv$",
+                    "description": "CSV of positive controls with columns accession, gene, fold, expected_pdb_ids (';'-separated), family_regex, rationale. Controls present in the samplesheet are checked."
+                },
+                "fail_on_control_failure": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Stop the run with an error when any positive control fails to recover a known relative."
+                }
+            }
+        }
+    },
+    "allOf": [
+        { "$ref": "#/$defs/input_output_options" },
+        { "$ref": "#/$defs/alphafold_options" },
+        { "$ref": "#/$defs/plddt_gate_options" },
+        { "$ref": "#/$defs/database_options" },
+        { "$ref": "#/$defs/search_options" },
+        { "$ref": "#/$defs/hit_options" },
+        { "$ref": "#/$defs/control_options" }
+    ]
+}
